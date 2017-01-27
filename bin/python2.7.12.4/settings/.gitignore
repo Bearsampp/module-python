@@ -1,0 +1,4 @@
+*
+!.gitignore
+!pydistutils.cfg
+!winpython.ini
