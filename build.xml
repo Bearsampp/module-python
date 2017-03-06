@@ -23,14 +23,37 @@
     <getbundlesrc name="${bundle.name}" version="${bundle.version}" propSrcDest="bundle.srcdest" propSrcFilename="bundle.srcfilename"/>
     <assertfile file="${bundle.srcdest}/scripts/python.bat"/>
     
+    <!-- Temp copy -->
+    <copy todir="${bundle.srcdest}" overwrite="true">
+      <fileset dir="${bundle.path}" defaultexcludes="yes"/>
+    </copy>
+    
+    <!-- Upgrade PIP -->
+    <echo message="Upgrade PIP"/>
+    <exec executable="${bundle.srcdest}/bin/python.bat" dir="${bundle.srcdest}/bin" failonerror="true">
+      <arg value="-m"/>
+      <arg value="pip"/>
+      <arg value="install"/>
+      <arg value="--upgrade"/>
+      <arg value="pip"/>
+    </exec>
+    
+    <!-- Download PyQt4 -->
+    <echo message="Download PyQt4"/>
+    <property name="pyqt4.path" location="${bundle.srcdest}/pyqt4"/>
+    <property file="${pyqt4.path}/pyqt4.properties"/>
+    <mkdir dir="${pyqt4.path}"/>
+    <get dest="${pyqt4.path}" src="${pyqt4}" skipexisting="true"/>
+    
     <!-- Install PyQt4 -->
-    <exec executable="${bundle.srcdest}/pyqt4/install.bat" dir="${bundle.srcdest}/pyqt4" failonerror="true"/>
-    <delete dir="${bundle.srcdest}/pyqt4"/>
+    <echo message="Install PyQt4"/>
+    <exec executable="${pyqt4.path}/install.bat" dir="${pyqt4.path}" failonerror="true"/>
+    <delete dir="${pyqt4.path}"/>
     
     <delete dir="${bundle.tmp.prep.path}/${bundle.folder}"/>
     <mkdir dir="${bundle.tmp.prep.path}/${bundle.folder}"/>
     <copy todir="${bundle.tmp.prep.path}/${bundle.folder}" overwrite="true">
-      <fileset dir="${bundle.srcdest}" defaultexcludes="yes"/>
+      <fileset dir="${bundle.srcdest}"/>
       <fileset dir="${bundle.path}" defaultexcludes="yes"/>
     </copy>
   </target>
