@@ -5,7 +5,7 @@ This is a module of [Neard project](https://github.com/neard/neard) involving Py
 
 ## Documentation and downloads
 
-http://neard.io/modules/python
+https://neard.io/modules/python
 
 ## Issues
 
