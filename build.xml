@@ -10,6 +10,7 @@
   <property name="dev.path" location="${root.dir}/dev"/>
   <fail unless="dev.path" message="Project 'dev' not found in ${dev.path}"/>
   <echo message="Bearsampp dev found in ${dev.path}" level="debug"/>
+  <echo message="srcdest= ${bundle.srcdest}" level="debug" />
 
   <!-- Import build-commons.xml -->
   <import file="${dev.path}/build/build-commons.xml"/>
@@ -38,17 +39,17 @@
       <arg value="pip"/>
     </exec>
 
-    <!-- Download PyQt4 -->
-    <echo message="Download PyQt4"/>
-    <property name="pyqt4.path" location="${bundle.srcdest}/pyqt4"/>
-    <property file="${pyqt4.path}/pyqt4.properties"/>
-    <mkdir dir="${pyqt4.path}"/>
-    <get dest="${pyqt4.path}" src="${pyqt4}" skipexisting="true"/>
+    <!-- Download pyqt5 -->
+    <echo message="Download pyqt5"/>
+    <property name="pyqt5.path" location="${bundle.srcdest}/pyqt5"/>
+    <property file="${pyqt5.path}/pyqt5.properties"/>
+    <mkdir dir="${pyqt5.path}"/>
+    <get dest="${pyqt5.path}" src="${pyqt5}" skipexisting="true"/>
 
-    <!-- Install PyQt4 -->
-    <echo message="Install PyQt4"/>
-    <exec executable="${pyqt4.path}/install.bat" dir="${pyqt4.path}" failonerror="true"/>
-    <delete dir="${pyqt4.path}"/>
+    <!-- Install pyqt5 -->
+    <echo message="Install PyQt5"/>
+    <exec executable="${pyqt5.path}/install.bat" dir="${pyqt5.path}" failonerror="true"/>
+    <delete dir="${pyqt5.path}"/>
 
     <delete dir="${bundle.tmp.prep.path}/${bundle.folder}"/>
     <mkdir dir="${bundle.tmp.prep.path}/${bundle.folder}"/>
@@ -57,7 +58,7 @@
     </copy>
     <copy todir="${bundle.tmp.prep.path}/${bundle.folder}" overwrite="true">
       <fileset dir="${bundle.path}" defaultexcludes="yes" excludes="
-        pyqt4/**"
+        pyqt5/**"
       />
     </copy>
   </target>

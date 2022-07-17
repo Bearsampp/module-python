@@ -4,9 +4,9 @@ pushd %WINPYDIRBASETMP%
 set WINPYDIRBASE=%CD%
 popd
 
-set WINPYDIR=%WINPYDIRBASE%\python-3.7.0
+set WINPYDIR=%WINPYDIRBASE%\python-3.11.0
 
-set WINPYVER=3.7.0.2Zero
+set WINPYVER=3.11.0
 set HOME=%WINPYDIRBASE%\settings
 rem set WINPYDIRBASE=
 
@@ -15,7 +15,7 @@ set WINPYARCH=WIN32
 if  "%WINPYDIR:~-5%"=="amd64" set WINPYARCH=WIN-AMD64
 set FINDDIR=%WINDIR%\system32
 echo ;%PATH%; | %FINDDIR%\find.exe /C /I ";%WINPYDIR%\;" >nul
-if %ERRORLEVEL% NEQ 0 set PATH=%WINPYDIR%\Lib\site-packages\PyQt5;%WINPYDIR%\Lib\site-packages\PyQt4;%WINPYDIR%\Lib\site-packages\PySide2;%WINPYDIR%\;%WINPYDIR%\DLLs;%WINPYDIR%\Scripts;%WINPYDIR%\..\t;%WINPYDIR%\..\t\mingw32\bin;%WINPYDIR%\..\t\R\bin\i386;%WINPYDIR%\..\t\Julia\bin;%WINPYDIR%\..\t\n;%PATH%;
+if %ERRORLEVEL% NEQ 0 set PATH=%WINPYDIR%\Lib\site-packages\PyQt5;%WINPYDIR%\Lib\site-packages\pyqt5;%WINPYDIR%\Lib\site-packages\PySide2;%WINPYDIR%\;%WINPYDIR%\DLLs;%WINPYDIR%\Scripts;%WINPYDIR%\..\t;%WINPYDIR%\..\t\mingw32\bin;%WINPYDIR%\..\t\R\bin\i386;%WINPYDIR%\..\t\Julia\bin;%WINPYDIR%\..\t\n;%PATH%;
 
 rem force default pyqt5 kit for Spyder if PyQt5 module is there
 if exist "%WINPYDIR%\Lib\site-packages\PyQt5\__init__.py" set QT_API=pyqt5
@@ -104,7 +104,7 @@ echo    gui = 'none'>>%tmp_pyz%
 rem ******************
 rem WinPython.ini part (removed from nsis)
 rem ******************
-if not exist "%WINPYDIRBASE%\settings" mkdir "%WINPYDIRBASE%\settings" 
+if not exist "%WINPYDIRBASE%\settings" mkdir "%WINPYDIRBASE%\settings"
 set winpython_ini=%WINPYDIRBASE%\settings\winpython.ini
 if not exist "%winpython_ini%" (
     echo [debug]>>"%winpython_ini%"

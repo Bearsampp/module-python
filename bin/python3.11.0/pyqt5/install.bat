@@ -1,4 +1,4 @@
 @echo off
 set WINPYSCRIPTSDIR=%~dp0..\scripts
 call "%WINPYSCRIPTSDIR%\env.bat"
-"%WINPYDIR%\Scripts\pip.exe" install PyQwt-5.2.1-cp37-cp37m-win_amd64.whl
+"%WINPYDIR%\Scripts\pip.exe" install PyQt5-5.15.7-cp37-abi3-win32.whl
