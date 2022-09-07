@@ -1,33 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="module-python" basedir=".">
-  
+
   <dirname property="project.basedir" file="${ant.file.module-python}"/>
   <property name="root.dir" location="${project.basedir}/.."/>
   <property name="build.properties" value="${project.basedir}/build.properties"/>
   <property file="${build.properties}"/>
-  
-  <!-- Neard dev -->
+
+  <!-- Bearsampp dev -->
   <property name="dev.path" location="${root.dir}/dev"/>
   <fail unless="dev.path" message="Project 'dev' not found in ${dev.path}"/>
-  <echo message="Neard dev found in ${dev.path}" level="debug"/> 
-  
+  <echo message="Bearsampp dev found in ${dev.path}" level="debug"/>
+
   <!-- Import build-commons.xml -->
   <import file="${dev.path}/build/build-commons.xml"/>
   <!-- Import build-bundle.xml -->
   <import file="${dev.path}/build/build-bundle.xml"/>
-  
+
   <target name="release.build">
     <basename property="bundle.folder" file="${bundle.path}"/>
     <replaceproperty src="bundle.folder" dest="bundle.version" replace="${bundle.name}" with=""/>
-    
+
     <getmoduleuntouched name="${bundle.name}" version="${bundle.version}" propSrcDest="bundle.srcdest" propSrcFilename="bundle.srcfilename"/>
     <assertfile file="${bundle.srcdest}/scripts/python.bat"/>
-    
+
     <!-- Temp copy -->
     <copy todir="${bundle.srcdest}" overwrite="true">
       <fileset dir="${bundle.path}" defaultexcludes="yes"/>
     </copy>
-    
+
     <!-- Upgrade PIP -->
     <echo message="Upgrade PIP"/>
     <exec executable="${bundle.srcdest}/bin/python.bat" dir="${bundle.srcdest}/bin" failonerror="true">
@@ -37,19 +37,19 @@
       <arg value="--upgrade"/>
       <arg value="pip"/>
     </exec>
-    
+
     <!-- Download PyQt4 -->
     <echo message="Download PyQt4"/>
     <property name="pyqt4.path" location="${bundle.srcdest}/pyqt4"/>
     <property file="${pyqt4.path}/pyqt4.properties"/>
     <mkdir dir="${pyqt4.path}"/>
     <get dest="${pyqt4.path}" src="${pyqt4}" skipexisting="true"/>
-    
+
     <!-- Install PyQt4 -->
     <echo message="Install PyQt4"/>
     <exec executable="${pyqt4.path}/install.bat" dir="${pyqt4.path}" failonerror="true"/>
     <delete dir="${pyqt4.path}"/>
-    
+
     <delete dir="${bundle.tmp.prep.path}/${bundle.folder}"/>
     <mkdir dir="${bundle.tmp.prep.path}/${bundle.folder}"/>
     <copy todir="${bundle.tmp.prep.path}/${bundle.folder}" overwrite="true">
@@ -61,5 +61,5 @@
       />
     </copy>
   </target>
-  
+
 </project>
