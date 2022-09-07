@@ -1,4 +1,4 @@
 @echo off
 set WINPYSCRIPTSDIR=%~dp0..\scripts
 call "%WINPYSCRIPTSDIR%\env.bat"
-"%WINPYDIR%\Scripts\pip.exe" install PyQt4-4.11.4-cp37-cp37m-win32.whl
+"%WINPYDIR%\Scripts\pip.exe" install pywin32-304.0-cp310-cp310-win_amd64.whl
