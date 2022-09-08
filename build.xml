@@ -39,17 +39,17 @@
       <arg value="pip"/>
     </exec>
 
-    <!-- Download pyqt5 -->
-    <echo message="Download pyqt5"/>
-    <property name="pyqt5.path" location="${bundle.srcdest}/pyqt5"/>
-    <property file="${pyqt5.path}/pyqt5.properties"/>
-    <mkdir dir="${pyqt5.path}"/>
-    <get dest="${pyqt5.path}" src="${pyqt5}" skipexisting="true"/>
+    <!-- Download wheel -->
+    <echo message="Download Wheel"/>
+    <property name="wheel.path" location="${bundle.srcdest}/wheel"/>
+    <property file="${wheel.path}/wheel.properties"/>
+    <mkdir dir="${wheel.path}"/>
+    <get dest="${wheel.path}" src="${wheel}" skipexisting="true"/>
 
-    <!-- Install pyqt5 -->
-    <echo message="Install PyQt5"/>
-    <exec executable="${pyqt5.path}/install.bat" dir="${pyqt5.path}" failonerror="true"/>
-    <delete dir="${pyqt5.path}"/>
+    <!-- Install wheel -->
+    <echo message="Install Wheel"/>
+    <exec executable="${wheel.path}/install.bat" dir="${wheel.path}" failonerror="true"/>
+    <delete dir="${wheel.path}"/>
 
     <delete dir="${bundle.tmp.prep.path}/${bundle.folder}"/>
     <mkdir dir="${bundle.tmp.prep.path}/${bundle.folder}"/>
