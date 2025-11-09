@@ -1,0 +1,537 @@
+/*
+ * Bearsampp Module Python - Gradle Build
+ *
+ * This is a hybrid build configuration that:
+ * 1. Imports existing Ant build files for backward compatibility
+ * 2. Provides modern Gradle features (caching, incremental builds, parallel execution)
+ * 3. Allows gradual migration from Ant to Gradle
+ * 4. Handles Python-specific build dependencies (PIP upgrades, wheel installations)
+ *
+ * Usage:
+ *   gradle tasks                              - List all available tasks
+ *   gradle release                            - Interactive release (prompts for version)
+ *   gradle release "-PbundleVersion=3.13.5"   - Non-interactive release
+ *   gradle clean                              - Clean build artifacts
+ *   gradle info                               - Display build information
+ */
+
+plugins {
+    id 'base'
+}
+
+// Load build properties
+def buildProps = new Properties()
+file('build.properties').withInputStream { buildProps.load(it) }
+
+// Project information
+group = 'com.bearsampp.modules'
+version = buildProps.getProperty('bundle.release', '1.0.0')
+description = "Bearsampp Module - ${buildProps.getProperty('bundle.name', 'python')}"
+
+// Define project paths
+ext {
+    projectBasedir = projectDir.absolutePath
+    rootDir = projectDir.parent
+    devPath = file("${rootDir}/dev").absolutePath
+    buildPropertiesFile = file('build.properties').absolutePath
+
+    // Bundle properties from build.properties
+    bundleName = buildProps.getProperty('bundle.name', 'python')
+    bundleRelease = buildProps.getProperty('bundle.release', '1.0.0')
+    bundleType = buildProps.getProperty('bundle.type', 'tools')
+    bundleFormat = buildProps.getProperty('bundle.format', '7z')
+}
+
+// Verify dev path exists
+if (!file(ext.devPath).exists()) {
+    throw new GradleException("Dev path not found: ${ext.devPath}. Please ensure the 'dev' project exists in ${ext.rootDir}")
+}
+
+// Configure repositories for dependencies
+repositories {
+    mavenCentral()
+}
+
+// ============================================================================
+// ANT INTEGRATION - Import existing Ant build files
+// ============================================================================
+
+// Set Ant properties before importing
+ant.properties['project.basedir'] = ext.projectBasedir
+ant.properties['root.dir'] = ext.rootDir
+ant.properties['dev.path'] = ext.devPath
+ant.properties['build.properties'] = ext.buildPropertiesFile
+
+// Load build.properties into Ant
+ant.property(file: ext.buildPropertiesFile)
+
+// Import the main Ant build file
+// This preserves all existing Ant functionality including Python-specific build steps
+ant.importBuild('build.xml') { antTargetName ->
+    // Map Ant target names to Gradle task names
+    // Prefix all with 'ant-' to avoid conflicts
+    return "ant-${antTargetName}".toString()
+}
+
+// ============================================================================
+// GRADLE NATIVE TASKS - Modern alternatives and enhancements
+// ============================================================================
+
+// Task: Display build information
+tasks.register('info') {
+    group = 'help'
+    description = 'Display build configuration information'
+
+    doLast {
+        println """
+        ================================================================
+                  Bearsampp Module Python - Build Info
+        ================================================================
+
+        Project:        ${project.name}
+        Version:        ${project.version}
+        Description:    ${project.description}
+
+        Bundle Properties:
+          Name:         ${bundleName}
+          Release:      ${bundleRelease}
+          Type:         ${bundleType}
+          Format:       ${bundleFormat}
+
+        Paths:
+          Project Dir:  ${projectBasedir}
+          Root Dir:     ${rootDir}
+          Dev Path:     ${devPath}
+
+        Java:
+          Version:      ${JavaVersion.current()}
+          Home:         ${System.getProperty('java.home')}
+
+        Gradle:
+          Version:      ${gradle.gradleVersion}
+          Home:         ${gradle.gradleHomeDir}
+
+        Python Build Features:
+          * Automatic PIP upgrade during build
+          * Wheel package download and installation
+          * Support for multiple Python versions
+          * PyQt5 exclusion handling
+
+        Available Task Groups:
+          * build        - Build and package tasks
+          * ant tasks    - Legacy Ant tasks (prefixed with 'ant-')
+          * help         - Help and information tasks
+          * verification - Verification and validation tasks
+
+        Quick Start:
+          gradle tasks                              - List all available tasks
+          gradle info                               - Show this information
+          gradle release                            - Interactive release build
+          gradle release "-PbundleVersion=3.13.5"   - Non-interactive release
+          gradle clean                              - Clean build artifacts
+          gradle verify                             - Verify build environment
+          gradle listVersions                       - List available Python versions
+        """.stripIndent()
+    }
+}
+
+// Task: Main release task - supports both interactive and non-interactive modes
+tasks.register('release') {
+    group = 'build'
+    description = 'Build release package (interactive or use -PbundleVersion=X.X.X for non-interactive)'
+
+    // Ensure libraries are loaded first
+    dependsOn 'ant-load.lib'
+
+    doLast {
+        def versionToBuild = project.findProperty('bundleVersion')
+
+        if (versionToBuild) {
+            // Non-interactive mode with specified version
+            println "=".multiply(70)
+            println "Building release for ${bundleName} version ${versionToBuild}..."
+            println "=".multiply(70)
+
+            def bundlePath = file("${projectDir}/bin/${bundleName}${versionToBuild}")
+
+            if (!bundlePath.exists()) {
+                def availableVersions = file("${projectDir}/bin").listFiles()
+                    .findAll { it.isDirectory() && it.name.startsWith(bundleName) }
+                    .collect { "  - " + it.name.replace(bundleName, '') }
+                    .join('\n')
+
+                throw new GradleException("Bundle version not found: ${bundlePath}\n\nAvailable versions in bin/:\n${availableVersions}")
+            }
+
+            println "Bundle path: ${bundlePath}"
+            println ""
+            println "Python-specific build steps will be executed:"
+            println "  1. Upgrade PIP to latest version"
+            println "  2. Download wheel packages from wheel.properties"
+            println "  3. Install wheel packages using install.bat"
+            println ""
+
+            // Execute Ant command directly to avoid Gradle Ant integration issues
+            def antCommand = ["cmd", "/c", "ant", "release", "-Dinput.bundle=${versionToBuild}"]
+            println "Executing: ant release -Dinput.bundle=${versionToBuild}"
+            println ""
+
+            def process = antCommand.execute(null, projectDir)
+            process.consumeProcessOutput(System.out, System.err)
+            def exitCode = process.waitFor()
+
+            if (exitCode != 0) {
+                throw new GradleException("Ant release failed with exit code: ${exitCode}")
+            }
+
+            println ""
+            println "=".multiply(70)
+            println "[SUCCESS] Release build completed successfully for version ${versionToBuild}"
+            println "=".multiply(70)
+        } else {
+            // Interactive mode - call Ant release target which will prompt for input
+            println "=".multiply(70)
+            println "Starting interactive release build..."
+            println "You will be prompted to enter the bundle version."
+            println "=".multiply(70)
+            println ""
+
+            // Call the imported ant-release target for interactive mode
+            tasks.getByName('ant-release').actions.each { action ->
+                action.execute(tasks.getByName('ant-release'))
+            }
+
+            println ""
+            println "=".multiply(70)
+            println "[SUCCESS] Release build completed"
+            println "=".multiply(70)
+        }
+    }
+}
+
+// Task: Enhanced clean task
+tasks.named('clean') {
+    group = 'build'
+    description = 'Clean build artifacts and temporary files'
+
+    doLast {
+        // Clean Gradle build directory
+        def buildDir = file("${projectDir}/build")
+        if (buildDir.exists()) {
+            delete buildDir
+        }
+
+        // Clean any temporary directories that might be created
+        // Use manual directory traversal to avoid fileTree default excludes issue
+        def tmpDirs = []
+        projectDir.eachFileRecurse { file ->
+            if (file.isDirectory() && (file.name == 'tmp' || file.name == '.tmp')) {
+                tmpDirs.add(file)
+            }
+        }
+        tmpDirs.each { dir ->
+            if (dir.exists()) {
+                delete dir
+            }
+        }
+
+        println "[SUCCESS] Build artifacts cleaned"
+    }
+}
+
+// Task: Verify build environment
+tasks.register('verify') {
+    group = 'verification'
+    description = 'Verify build environment and dependencies'
+
+    doLast {
+        println "Verifying build environment for module-python..."
+
+        def checks = [:]
+
+        // Check Java version
+        def javaVersion = JavaVersion.current()
+        checks['Java 8+'] = javaVersion >= JavaVersion.VERSION_1_8
+
+        // Check required files
+        checks['build.xml'] = file('build.xml').exists()
+        checks['build.properties'] = file('build.properties').exists()
+        checks['releases.properties'] = file('releases.properties').exists()
+
+        // Check dev directory and required build files
+        checks['dev directory'] = file(devPath).exists()
+        checks['build-commons.xml'] = file("${devPath}/build/build-commons.xml").exists()
+        checks['build-bundle.xml'] = file("${devPath}/build/build-bundle.xml").exists()
+
+        // Check bin directory for Python versions
+        def binDir = file("${projectDir}/bin")
+        checks['bin directory'] = binDir.exists()
+
+        if (binDir.exists()) {
+            def pythonVersions = binDir.listFiles()
+                .findAll { it.isDirectory() && it.name.startsWith(bundleName) }
+            checks['Python versions available'] = pythonVersions.size() > 0
+        }
+
+        println "\nEnvironment Check Results:"
+        println "-".multiply(60)
+        checks.each { name, passed ->
+            def status = passed ? "[PASS]" : "[FAIL]"
+            println "  ${status.padRight(10)} ${name}"
+        }
+        println "-".multiply(60)
+
+        def allPassed = checks.values().every { it }
+        if (allPassed) {
+            println "\n[SUCCESS] All checks passed! Build environment is ready."
+            println "\nYou can now run:"
+            println "  gradle release                            - Interactive release"
+            println "  gradle release \"-PbundleVersion=3.13.5\"   - Non-interactive release"
+            println "  gradle listVersions                       - List available Python versions"
+        } else {
+            println "\n[WARNING] Some checks failed. Please review the requirements."
+            throw new GradleException("Build environment verification failed")
+        }
+    }
+}
+
+// Task: List all bundle versions from releases.properties
+tasks.register('listReleases') {
+    group = 'help'
+    description = 'List all available releases from releases.properties'
+
+    doLast {
+        def releasesFile = file('releases.properties')
+        if (!releasesFile.exists()) {
+            println "releases.properties not found"
+            return
+        }
+
+        def releases = new Properties()
+        releasesFile.withInputStream { releases.load(it) }
+
+        println "\nAvailable Python Releases:"
+        println "-".multiply(80)
+        releases.sort { it.key }.each { version, url ->
+            println "  ${version.padRight(15)} -> ${url}"
+        }
+        println "-".multiply(80)
+        println "Total releases: ${releases.size()}"
+    }
+}
+
+// Task: List available bundle versions in bin directory
+tasks.register('listVersions') {
+    group = 'help'
+    description = 'List all available Python bundle versions in bin/ directory'
+
+    doLast {
+        def binDir = file("${projectDir}/bin")
+        if (!binDir.exists()) {
+            println "bin/ directory not found"
+            return
+        }
+
+        def versions = binDir.listFiles()
+            .findAll { it.isDirectory() && it.name.startsWith(bundleName) }
+            .collect { it.name.replace(bundleName, '') }
+            .sort()
+
+        println "\nAvailable ${bundleName} versions in bin/:"
+        println "-".multiply(60)
+        versions.each { version ->
+            def versionDir = file("${binDir}/${bundleName}${version}")
+            def wheelDir = file("${versionDir}/wheel")
+            def hasWheel = wheelDir.exists()
+            def wheelInfo = ""
+
+            if (hasWheel) {
+                def wheelProps = file("${wheelDir}/wheel.properties")
+                if (wheelProps.exists()) {
+                    def props = new Properties()
+                    wheelProps.withInputStream { props.load(it) }
+                    def wheelUrl = props.getProperty('wheel', '')
+                    def wheelFile = wheelUrl.tokenize('/').last()
+                    wheelInfo = " [wheel: ${wheelFile}]"
+                }
+            }
+
+            println "  ${version}${wheelInfo}"
+        }
+        println "-".multiply(60)
+        println "Total versions: ${versions.size()}"
+        println "\nTo build a specific version:"
+        println "  gradle release \"-PbundleVersion=${versions.last()}\""
+    }
+}
+
+// Task: Validate build.properties
+tasks.register('validateProperties') {
+    group = 'verification'
+    description = 'Validate build.properties configuration'
+
+    doLast {
+        println "Validating build.properties..."
+
+        def required = ['bundle.name', 'bundle.release', 'bundle.type', 'bundle.format']
+        def missing = []
+
+        required.each { prop ->
+            if (!buildProps.containsKey(prop) || buildProps.getProperty(prop).trim().isEmpty()) {
+                missing.add(prop)
+            }
+        }
+
+        if (missing.isEmpty()) {
+            println "[SUCCESS] All required properties are present:"
+            required.each { prop ->
+                println "    ${prop} = ${buildProps.getProperty(prop)}"
+            }
+        } else {
+            println "[ERROR] Missing required properties:"
+            missing.each { prop ->
+                println "    - ${prop}"
+            }
+            throw new GradleException("build.properties validation failed")
+        }
+    }
+}
+
+// Task: Validate Python version structure
+tasks.register('validatePythonVersion') {
+    group = 'verification'
+    description = 'Validate Python version directory structure (use -PbundleVersion=X.X.X)'
+
+    doLast {
+        def versionToValidate = project.findProperty('bundleVersion')
+
+        if (!versionToValidate) {
+            println "[ERROR] Please specify a version using -PbundleVersion=X.X.X"
+            println "\nExample: gradle validatePythonVersion \"-PbundleVersion=3.13.5\""
+            throw new GradleException("Bundle version not specified")
+        }
+
+        def versionDir = file("${projectDir}/bin/${bundleName}${versionToValidate}")
+
+        if (!versionDir.exists()) {
+            println "[ERROR] Version directory not found: ${versionDir}"
+            throw new GradleException("Python version ${versionToValidate} not found")
+        }
+
+        println "Validating Python version ${versionToValidate}..."
+        println "-".multiply(60)
+
+        def checks = [:]
+
+        // Check required directories
+        checks['bin directory'] = file("${versionDir}/bin").exists()
+        checks['wheel directory'] = file("${versionDir}/wheel").exists()
+
+        // Check required files
+        checks['bearsampp.conf'] = file("${versionDir}/bearsampp.conf").exists()
+        checks['bin/python.bat'] = file("${versionDir}/bin/python.bat").exists()
+
+        // Check wheel configuration
+        def wheelDir = file("${versionDir}/wheel")
+        if (wheelDir.exists()) {
+            checks['wheel.properties'] = file("${wheelDir}/wheel.properties").exists()
+            checks['install.bat'] = file("${wheelDir}/install.bat").exists()
+
+            // Validate wheel.properties content
+            def wheelProps = file("${wheelDir}/wheel.properties")
+            if (wheelProps.exists()) {
+                def props = new Properties()
+                wheelProps.withInputStream { props.load(it) }
+                checks['wheel URL defined'] = props.containsKey('wheel') && !props.getProperty('wheel').trim().isEmpty()
+            }
+        }
+
+        println "\nValidation Results:"
+        println "-".multiply(60)
+        checks.each { name, passed ->
+            def status = passed ? "[PASS]" : "[FAIL]"
+            println "  ${status.padRight(10)} ${name}"
+        }
+        println "-".multiply(60)
+
+        def allPassed = checks.values().every { it }
+        if (allPassed) {
+            println "\n[SUCCESS] Python version ${versionToValidate} structure is valid"
+        } else {
+            println "\n[WARNING] Some validation checks failed"
+            throw new GradleException("Python version validation failed")
+        }
+    }
+}
+
+// Task: Display wheel information for a Python version
+tasks.register('showWheelInfo') {
+    group = 'help'
+    description = 'Display wheel package information for a Python version (use -PbundleVersion=X.X.X)'
+
+    doLast {
+        def versionToCheck = project.findProperty('bundleVersion')
+
+        if (!versionToCheck) {
+            println "[ERROR] Please specify a version using -PbundleVersion=X.X.X"
+            println "\nExample: gradle showWheelInfo \"-PbundleVersion=3.13.5\""
+            return
+        }
+
+        def versionDir = file("${projectDir}/bin/${bundleName}${versionToCheck}")
+        def wheelDir = file("${versionDir}/wheel")
+
+        if (!wheelDir.exists()) {
+            println "[ERROR] Wheel directory not found for version ${versionToCheck}"
+            return
+        }
+
+        println "\nWheel Information for Python ${versionToCheck}:"
+        println "=".multiply(70)
+
+        def wheelProps = file("${wheelDir}/wheel.properties")
+        if (wheelProps.exists()) {
+            def props = new Properties()
+            wheelProps.withInputStream { props.load(it) }
+
+            def wheelUrl = props.getProperty('wheel', 'Not defined')
+            def wheelFile = wheelUrl.tokenize('/').last()
+
+            println "  Wheel URL:  ${wheelUrl}"
+            println "  Wheel File: ${wheelFile}"
+            println "  Location:   ${wheelDir}"
+        } else {
+            println "  [WARNING] wheel.properties not found"
+        }
+
+        def installBat = file("${wheelDir}/install.bat")
+        if (installBat.exists()) {
+            println "\n  Install Script: ${installBat}"
+            println "  Content:"
+            println "  " + "-".multiply(66)
+            installBat.eachLine { line ->
+                println "  ${line}"
+            }
+        }
+
+        println "=".multiply(70)
+    }
+}
+
+// ============================================================================
+// BUILD LIFECYCLE HOOKS
+// ============================================================================
+
+gradle.taskGraph.whenReady { graph ->
+    println """
+    ================================================================
+      Bearsampp Module Python - Gradle + Ant Hybrid Build
+    ================================================================
+    """.stripIndent()
+}
+
+// ============================================================================
+// DEFAULT TASK
+// ============================================================================
+
+defaultTasks 'info'
