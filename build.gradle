@@ -1032,19 +1032,14 @@ tasks.register('generateHashes') {
         writeHash('SHA-256', 'sha256')
         writeHash('SHA-512', 'sha512')
         
-        // Print final success message - read from file to avoid deprecation warnings
-        def buildBundlePath = bundleTmpBuildPath
-        def pathsFile = file("${buildTmpPath}/.gradle-build-paths")
-        if (pathsFile.exists()) {
-            def props = new Properties()
-            pathsFile.withInputStream { props.load(it) }
-            buildBundlePath = props.getProperty('buildBundlePath', bundleTmpBuildPath)
-        }
+        // Print final success message
+        def bundleFolder = "${bundleName}${versionToBuild}"
+        def outputDir = file("${bundleTmpBuildPath}/${bundleFolder}")
         
         println ""
         println "=".multiply(70)
         println "[SUCCESS] Release build completed successfully for version ${versionToBuild}"
-        println "Output directory: ${buildBundlePath}"
+        println "Output directory: ${outputDir.absolutePath}"
         println "Archive: ${archive.absolutePath}"
         println "=".multiply(70)
     }
