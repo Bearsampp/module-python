@@ -32,6 +32,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Ensure releases.properties from main branch
+        run: |
+          # For PRs, ensure we're checking releases.properties from main branch
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "Fetching releases.properties from main branch..."
+            git fetch origin main:main
+            git checkout main -- releases.properties || echo "Could not fetch releases.properties from main"
+          fi
+
       - name: Detect Versions to Test
         id: detect
         run: |
@@ -189,6 +198,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Create Test Results Directory
         run: |
@@ -198,6 +209,8 @@ jobs:
       - name: Phase 1.1 - Download and Extract Python
         id: download-python
         continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           $ErrorActionPreference = "Stop"
           $version = "${{ matrix.version }}"
@@ -244,7 +257,18 @@ jobs:
             Write-Host "Target file: $downloadPath"
             
             try {
-              Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath -UseBasicParsing -TimeoutSec 300
+              # Try download with GitHub token for authentication (helps with pre-releases)
+              $headers = @{}
+              if ($env:GITHUB_TOKEN) {
+                $headers["Authorization"] = "token $env:GITHUB_TOKEN"
+                Write-Host "Using GitHub token for authentication"
+              }
+              
+              if ($headers.Count -gt 0) {
+                Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath -Headers $headers -UseBasicParsing -TimeoutSec 300
+              } else {
+                Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath -UseBasicParsing -TimeoutSec 300
+              }
             } catch {
               Write-Host "❌ ERROR: Download failed!"
               Write-Host "Error details: $($_.Exception.Message)"
