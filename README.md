@@ -4,6 +4,7 @@
 
 [![GitHub release](https://img.shields.io/github/release/bearsampp/module-python.svg?style=flat-square)](https://github.com/bearsampp/module-python/releases/latest)
 ![Total downloads](https://img.shields.io/github/downloads/bearsampp/module-python/total.svg?style=flat-square)
+[![CI/CD Tests](https://img.shields.io/github/actions/workflow/status/bearsampp/module-python/python-test.yml?branch=main&label=tests&style=flat-square)](https://github.com/bearsampp/module-python/actions/workflows/python-test.yml)
 
 </div>
 
@@ -92,6 +93,32 @@ gradle showWheelInfo "-PbundleVersion=3.13.5"
 - ✅ Parallel execution support
 - ✅ Interactive and non-interactive build modes
 - ✅ Comprehensive verification and validation tasks
+- ✅ Automated CI/CD testing for all Python versions
+
+## CI/CD System
+
+This module includes automated CI/CD testing that validates Python modules.
+
+### Automated Testing
+
+The CI/CD pipeline automatically:
+
+- 🔍 Detects Python versions from pre-release files in PRs
+- 📥 Downloads and extracts Python modules
+- ✅ Verifies executables (python.exe, pip.exe)
+- 🧪 Tests basic functionality (version, pip, imports)
+- 📊 Generates detailed test reports
+- 💬 Comments on pull requests with results
+
+### Triggering Tests
+
+Tests run automatically when:
+- Pull requests include pre-release `.7z` files (e.g., `bearsampp-python-3.13.5-2025.8.21.7z`)
+- PR titles contain version numbers as fallback (e.g., "Add Python 3.13.5")
+- Pushes to main branch (tests latest version only)
+- Manual workflow dispatch
+
+See [CI/CD Workflow Documentation](.github/workflows/README.md) for details.
 
 ## Project Structure
 
