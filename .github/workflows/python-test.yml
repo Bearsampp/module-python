@@ -35,7 +35,7 @@ jobs:
       - name: Detect Versions to Test
         id: detect
         run: |
-          echo "=== Detecting Python Versions to Test ==="
+          echo "=== Smart Version Detection for Pull Request Testing ==="
           
           # Initialize versions array
           VERSIONS="[]"
@@ -51,56 +51,61 @@ jobs:
             exit 0
           fi
           
-          # For pull requests, detect versions from pre-release files
+          # For pull requests, use smart detection
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "Pull request detected, checking for pre-release files..."
+            echo "Pull request detected - using smart version detection"
+            echo ""
             
             # Get changed files in the PR
             CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
-            echo "Changed files:"
+            echo "Changed files in PR:"
             echo "$CHANGED_FILES"
+            echo ""
             
-            # Look for pre-release files (e.g., bearsampp-python-3.13.5-2025.8.21.7z)
-            PRERELEASE_FILES=$(echo "$CHANGED_FILES" | grep -E 'bearsampp-python-[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?(-[a-z0-9]+)?-[0-9]+\.[0-9]+\.[0-9]+\.7z' || true)
+            # PRIMARY METHOD: Extract versions from /bin directory changes
+            echo "🔍 Primary Method: Checking /bin directory for version changes..."
+            BIN_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^bin/python[0-9]+\.[0-9]+\.[0-9]+' || true)
             
-            if [ -n "$PRERELEASE_FILES" ]; then
-              echo "✅ Found pre-release files:"
-              echo "$PRERELEASE_FILES"
+            if [ -n "$BIN_CHANGES" ]; then
+              echo "✅ Found changes in /bin directory:"
+              echo "$BIN_CHANGES"
+              echo ""
               
-              # Extract version numbers from pre-release filenames
+              # Extract version numbers from bin directory names (e.g., bin/python3.19.1/ -> 3.19.1)
               DETECTED_VERSIONS=""
               while IFS= read -r file; do
-                # Extract version from filename (e.g., bearsampp-python-3.13.5-2025.8.21.7z -> 3.13.5)
-                VERSION=$(echo "$file" | grep -oE 'python-[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?(-[a-z0-9]+)?' | sed 's/python-//')
+                VERSION=$(echo "$file" | grep -oE 'python[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?' | sed 's/python//')
                 if [ -n "$VERSION" ]; then
-                  echo "  Detected version: $VERSION from $file"
+                  echo "  📦 Detected version: $VERSION from $file"
                   DETECTED_VERSIONS="$DETECTED_VERSIONS $VERSION"
                 fi
-              done <<< "$PRERELEASE_FILES"
+              done <<< "$BIN_CHANGES"
               
-              # Verify these versions exist in releases.properties
+              # Remove duplicates and verify versions exist in releases.properties
               VALID_VERSIONS=""
-              for version in $DETECTED_VERSIONS; do
-                if grep -q "^${version}" releases.properties; then
-                  echo "✅ Version $version exists in releases.properties"
+              for version in $(echo "$DETECTED_VERSIONS" | tr ' ' '\n' | sort -u); do
+                if [ -n "$version" ] && grep -q "^${version}" releases.properties; then
+                  echo "  ✅ Version $version confirmed in releases.properties"
                   VALID_VERSIONS="$VALID_VERSIONS $version"
                   HAS_CHANGES="true"
                 else
-                  echo "⚠️ Version $version not found in releases.properties"
+                  echo "  ⚠️  Version $version not found in releases.properties (will skip)"
                 fi
               done
               
               if [ -n "$VALID_VERSIONS" ]; then
                 VERSIONS=$(echo "$VALID_VERSIONS" | tr ' ' '\n' | grep -v '^$' | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
-                echo "Valid versions to test from pre-release files: $VERSIONS"
+                echo ""
+                echo "✅ Primary method successful - versions to test: $VERSIONS"
               fi
             else
-              echo "ℹ️ No pre-release files found in PR"
+              echo "ℹ️  No changes detected in /bin directory"
             fi
             
-            # Fallback: Check PR title for version numbers if no pre-release files found
+            # FALLBACK METHOD: Check PR title for version numbers
             if [ "$HAS_CHANGES" = "false" ]; then
-              echo "Checking PR title for version numbers as fallback..."
+              echo ""
+              echo "🔍 Fallback Method: Checking PR title for version numbers..."
               PR_TITLE="${{ github.event.pull_request.title }}"
               echo "PR Title: $PR_TITLE"
               
@@ -114,24 +119,42 @@ jobs:
                 VALID_VERSIONS=""
                 for version in $TITLE_VERSIONS; do
                   if grep -q "^${version}" releases.properties; then
-                    echo "✅ Version $version exists in releases.properties"
+                    echo "  ✅ Version $version confirmed in releases.properties"
                     VALID_VERSIONS="$VALID_VERSIONS $version"
                     HAS_CHANGES="true"
                   else
-                    echo "⚠️ Version $version not found in releases.properties"
+                    echo "  ⚠️  Version $version not found in releases.properties"
                   fi
                 done
                 
                 if [ -n "$VALID_VERSIONS" ]; then
                   VERSIONS=$(echo "$VALID_VERSIONS" | tr ' ' '\n' | grep -v '^$' | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
-                  echo "Valid versions to test from PR title: $VERSIONS"
+                  echo ""
+                  echo "✅ Fallback method successful - versions to test: $VERSIONS"
                 fi
               else
-                echo "ℹ️ No version numbers found in PR title"
+                echo "ℹ️  No version numbers found in PR title"
+              fi
+            fi
+            
+            # FINAL FALLBACK: Test latest 5 versions if no versions detected
+            if [ "$HAS_CHANGES" = "false" ]; then
+              echo ""
+              echo "🔍 Final Fallback: No versions detected, testing latest 5 versions..."
+              LATEST_VERSIONS=$(grep -E "^[0-9]" releases.properties | cut -d'=' -f1 | tr -d ' ' | head -n 5)
+              
+              if [ -n "$LATEST_VERSIONS" ]; then
+                VERSIONS=$(echo "$LATEST_VERSIONS" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+                HAS_CHANGES="true"
+                echo "✅ Testing latest 5 versions: $VERSIONS"
+              else
+                echo "⚠️  No versions found in releases.properties"
+                VERSIONS="[]"
+                HAS_CHANGES="false"
               fi
             fi
           else
-            # For push events, test only the latest version (first line in releases.properties)
+            # For push events, test only the latest version
             echo "Push event detected, testing latest version only"
             HAS_CHANGES="true"
             LATEST_VERSION=$(grep -E "^[0-9]" releases.properties | cut -d'=' -f1 | tr -d ' ' | head -n 1)
@@ -145,8 +168,11 @@ jobs:
             fi
           fi
           
+          echo ""
+          echo "=========================================="
           echo "Final versions to test: $VERSIONS"
           echo "Has changes: $HAS_CHANGES"
+          echo "=========================================="
           
           echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
           echo "has-changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
@@ -542,16 +568,18 @@ jobs:
           if [ "$TEST_STATUS" = "skipped" ] || [ "$VERSIONS" = "[]" ]; then
             echo "**Status:** ⏭️ Tests skipped - no versions to test" >> comment.md
             echo "" >> comment.md
-            echo "ℹ️ **Why were tests skipped?**" >> comment.md
+            echo "ℹ️ **Smart Version Detection**" >> comment.md
             echo "" >> comment.md
-            echo "Tests are only run when:" >> comment.md
-            echo "- PR includes pre-release files (e.g., \`bearsampp-python-3.13.5-2025.8.21.7z\`), OR" >> comment.md
-            echo "- PR title contains version numbers (e.g., \"3.13.5\", \"3.12.9\") as fallback" >> comment.md
+            echo "This workflow uses intelligent three-tier detection:" >> comment.md
+            echo "" >> comment.md
+            echo "1. **Primary Method**: Detects versions from \`/bin/pythonX.X.X/\` directory changes" >> comment.md
+            echo "2. **Fallback Method**: Extracts versions from PR title (e.g., \"3.13.5\", \"3.12.9\")" >> comment.md
+            echo "3. **Final Fallback**: Tests latest 5 versions if no versions detected" >> comment.md
             echo "" >> comment.md
             echo "**To trigger tests:**" >> comment.md
-            echo "1. Add pre-release .7z files to your PR, OR" >> comment.md
-            echo "2. Add version numbers to your PR title (e.g., \"Update Python 3.13.5\"), OR" >> comment.md
-            echo "3. Manually trigger the workflow from the Actions tab" >> comment.md
+            echo "- Add changes to \`/bin/pythonX.X.X/\` directories, OR" >> comment.md
+            echo "- Add version numbers to your PR title (e.g., \"Update Python 3.13.5\"), OR" >> comment.md
+            echo "- Manually trigger the workflow from the Actions tab" >> comment.md
           elif [ "$TEST_STATUS" = "success" ]; then
             echo "**Status:** ✅ All tests passed" >> comment.md
           elif [ "$TEST_STATUS" = "failure" ]; then
