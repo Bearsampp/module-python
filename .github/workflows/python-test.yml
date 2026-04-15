@@ -93,7 +93,7 @@ jobs:
               # Remove duplicates and verify versions exist in releases.properties
               VALID_VERSIONS=""
               for version in $(echo "$DETECTED_VERSIONS" | tr ' ' '\n' | sort -u); do
-                if [ -n "$version" ] && grep -q "^${version}" releases.properties; then
+                if [ -n "$version" ] && grep -q "^${version}[[:space:]]*=" releases.properties; then
                   echo "  ✅ Version $version confirmed in releases.properties"
                   VALID_VERSIONS="$VALID_VERSIONS $version"
                   HAS_CHANGES="true"
@@ -127,7 +127,7 @@ jobs:
                 # Verify these versions exist in releases.properties
                 VALID_VERSIONS=""
                 for version in $TITLE_VERSIONS; do
-                  if grep -q "^${version}" releases.properties; then
+                  if grep -q "^${version}[[:space:]]*=" releases.properties; then
                     echo "  ✅ Version $version confirmed in releases.properties"
                     VALID_VERSIONS="$VALID_VERSIONS $version"
                     HAS_CHANGES="true"
