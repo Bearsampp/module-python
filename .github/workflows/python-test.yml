@@ -32,15 +32,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Ensure releases.properties from main branch
-        run: |
-          # For PRs, ensure we're checking releases.properties from main branch
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "Fetching releases.properties from main branch..."
-            git fetch origin main:main
-            git checkout main -- releases.properties || echo "Could not fetch releases.properties from main"
-          fi
-
       - name: Detect Versions to Test
         id: detect
         run: |
@@ -302,34 +293,23 @@ jobs:
                 Write-Host "Extracted contents:"
                 Get-ChildItem -Path "test-python" -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
                 
-                # Find the python directory
-                $pythonDir = Get-ChildItem -Path "test-python" -Directory | Where-Object { $_.Name -match "^python" } | Select-Object -First 1
-                
-                if ($pythonDir) {
-                  $pythonPath = $pythonDir.FullName
+                # Find python.exe recursively - sort by path length to prefer the main interpreter
+                $pythonExeItem = Get-ChildItem -Path "test-python" -Recurse -Filter "python.exe" -ErrorAction SilentlyContinue |
+                  Sort-Object { $_.FullName.Length } |
+                  Select-Object -First 1
+
+                if ($pythonExeItem) {
+                  $pythonPath = $pythonExeItem.DirectoryName
                   Write-Host "✅ Python directory found: $pythonPath"
-                  
-                  # Verify python.exe exists
-                  $pythonExe = Join-Path $pythonPath "python.exe"
-                  if (Test-Path $pythonExe) {
-                    Write-Host "✅ python.exe exists"
-                    echo "python-path=$pythonPath" >> $env:GITHUB_OUTPUT
-                    echo "success=true" >> $env:GITHUB_OUTPUT
-                  } else {
-                    Write-Host "❌ ERROR: python.exe not found in $pythonPath"
-                    Write-Host "Directory structure:"
-                    Get-ChildItem -Path $pythonPath | ForEach-Object { Write-Host "  - $($_.Name)" }
-                    echo "success=false" >> $env:GITHUB_OUTPUT
-                    echo "error=python.exe not found in extracted archive" >> $env:GITHUB_OUTPUT
-                    exit 1
-                  }
+                  Write-Host "✅ python.exe exists at: $($pythonExeItem.FullName)"
+                  echo "python-path=$pythonPath" >> $env:GITHUB_OUTPUT
+                  echo "success=true" >> $env:GITHUB_OUTPUT
                 } else {
-                  Write-Host "❌ ERROR: Python directory not found after extraction"
-                  Write-Host "Expected directory pattern: python*"
-                  Write-Host "Found directories:"
-                  Get-ChildItem -Path "test-python" -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+                  Write-Host "❌ ERROR: python.exe not found in extracted archive"
+                  Write-Host "Archive contents (first 30 entries):"
+                  Get-ChildItem -Path "test-python" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 30 | ForEach-Object { Write-Host "  - $($_.FullName)" }
                   echo "success=false" >> $env:GITHUB_OUTPUT
-                  echo "error=Python directory not found after extraction" >> $env:GITHUB_OUTPUT
+                  echo "error=python.exe not found in extracted archive" >> $env:GITHUB_OUTPUT
                   exit 1
                 }
               } else {
