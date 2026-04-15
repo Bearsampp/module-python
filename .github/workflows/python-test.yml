@@ -28,7 +28,7 @@ jobs:
       has-changes: ${{ steps.detect.outputs.has-changes }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
