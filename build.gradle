@@ -147,7 +147,21 @@ def findAvailableVersions = {
         )
     }
 
-    return versions.unique()
+    // Remove duplicates and sort semantically
+    return versions.unique().sort { a, b ->
+        def aParts = a.tokenize('.').collect { it.isInteger() ? it.toInteger() : it }
+        def bParts = b.tokenize('.').collect { it.isInteger() ? it.toInteger() : it }
+        for (int i = 0; i < Math.max(aParts.size(), bParts.size()); i++) {
+            def aVal = i < aParts.size() ? aParts[i] : 0
+            def bVal = i < bParts.size() ? bParts[i] : 0
+            if (aVal.getClass() != bVal.getClass()) {
+                aVal = aVal.toString()
+                bVal = bVal.toString()
+            }
+            if (aVal != bVal) return aVal <=> bVal
+        }
+        return 0
+    }
 }
 
 // Helper: Fetch python.properties from modules-untouched repository
@@ -283,13 +297,16 @@ def findPythonDirectory(File searchDir) {
 def latestVersion = { List<String> versions ->
     if (versions.isEmpty()) return null
     return versions.max { a, b ->
-        def pa = a.split('\\.').collect { it.isInteger() ? it as int : 0 }
-        def pb = b.split('\\.').collect { it.isInteger() ? it as int : 0 }
-        def len = Math.max(pa.size(), pb.size())
-        for (int i = 0; i < len; i++) {
-            def ai = i < pa.size() ? pa[i] : 0
-            def bi = i < pb.size() ? pb[i] : 0
-            if (ai != bi) return ai <=> bi
+        def aParts = a.tokenize('.').collect { it.isInteger() ? it.toInteger() : it }
+        def bParts = b.tokenize('.').collect { it.isInteger() ? it.toInteger() : it }
+        for (int i = 0; i < Math.max(aParts.size(), bParts.size()); i++) {
+            def aVal = i < aParts.size() ? aParts[i] : 0
+            def bVal = i < bParts.size() ? bParts[i] : 0
+            if (aVal.getClass() != bVal.getClass()) {
+                aVal = aVal.toString()
+                bVal = bVal.toString()
+            }
+            if (aVal != bVal) return aVal <=> bVal
         }
         return 0
     }
@@ -466,16 +483,7 @@ tasks.register('resolveVersion') {
 
     doLast {
         def supplied = versionProperty as String
-        def all = findAvailableVersions().sort { a, b ->
-            def pa = a.split('\\.').collect { it.isInteger() ? it as int : 0 }
-            def pb = b.split('\\.').collect { it.isInteger() ? it as int : 0 }
-            for (int i=0; i<Math.max(pa.size(), pb.size()); i++) {
-                def ai = i < pa.size() ? pa[i] : 0
-                def bi = i < pb.size() ? pb[i] : 0
-                if (ai != bi) return ai <=> bi
-            }
-            return 0
-        }
+        def all = findAvailableVersions()
         
         def inBin = new File(projectDir, 'bin').exists() ? (new File(projectDir, 'bin').listFiles()
             ?.findAll { it.isDirectory() && it.name.startsWith(bundleName) && it.name != 'archived' }
@@ -1066,6 +1074,44 @@ tasks.register('release') {
     finalizedBy 'generateHashes', 'cleanupTempFiles'
 }
 
+// Task: Check which versions from modules-untouched are not present locally
+tasks.register('checkModulesUntouched') {
+    group = 'help'
+    description = 'Check which versions from modules-untouched are not present locally'
+
+    doLast {
+        def untouchedProps = fetchModulesUntouchedProperties()
+        if (untouchedProps) {
+            def localVersions = findAvailableVersions()
+            println "=".multiply(70)
+            println "Versions in modules-untouched not present locally:"
+            println "=".multiply(70)
+
+            def sortedVersions = untouchedProps.sort { a, b ->
+                def aParts = a.key.tokenize('.').collect { it.isInteger() ? it.toInteger() : it }
+                def bParts = b.key.tokenize('.').collect { it.isInteger() ? it.toInteger() : it }
+                for (int i = 0; i < Math.max(aParts.size(), bParts.size()); i++) {
+                    def aVal = i < aParts.size() ? aParts[i] : 0
+                    def bVal = i < bParts.size() ? bParts[i] : 0
+                    if (aVal.getClass() != bVal.getClass()) {
+                        aVal = aVal.toString()
+                        bVal = bVal.toString()
+                    }
+                    if (aVal != bVal) return aVal <=> bVal
+                }
+                return 0
+            }
+
+            sortedVersions.each { version, url ->
+                if (!localVersions.contains(version)) {
+                    println "  - ${version.padRight(15)} -> ${url}"
+                }
+            }
+            println "=".multiply(70)
+        }
+    }
+}
+
 // Task: List all bundle versions from releases.properties
 tasks.register('listReleases') {
     group = 'help'
@@ -1083,7 +1129,23 @@ tasks.register('listReleases') {
 
         println "\nAvailable Python Releases:"
         println "-".multiply(80)
-        releases.sort { it.key }.each { version, url ->
+        
+        def sortedReleases = releases.sort { a, b ->
+            def aParts = a.key.tokenize('.').collect { it.isInteger() ? it.toInteger() : it }
+            def bParts = b.key.tokenize('.').collect { it.isInteger() ? it.toInteger() : it }
+            for (int i = 0; i < Math.max(aParts.size(), bParts.size()); i++) {
+                def aVal = i < aParts.size() ? aParts[i] : 0
+                def bVal = i < bParts.size() ? bParts[i] : 0
+                if (aVal.getClass() != bVal.getClass()) {
+                    aVal = aVal.toString()
+                    bVal = bVal.toString()
+                }
+                if (aVal != bVal) return aVal <=> bVal
+            }
+            return 0
+        }
+
+        sortedReleases.each { version, url ->
             println "  ${version.padRight(15)} -> ${url}"
         }
         println "-".multiply(80)
@@ -1113,16 +1175,7 @@ tasks.register('listVersions') {
             ?.findAll { it.isDirectory() && it.name.startsWith(bundleName) }
             ?.collect { it.name.replace(bundleName, '') } ?: []) : []
 
-        def allVersions = (inBin + inArchived).toSet().toList().sort { a, b ->
-            def pa = a.split('\\.').collect { it.isInteger() ? it as int : 0 }
-            def pb = b.split('\\.').collect { it.isInteger() ? it as int : 0 }
-            for (int i = 0; i < Math.max(pa.size(), pb.size()); i++) {
-                def ai = i < pa.size() ? pa[i] : 0
-                def bi = i < pb.size() ? pb[i] : 0
-                if (ai != bi) return ai <=> bi
-            }
-            return 0
-        }
+        def allVersions = findAvailableVersions()
 
         println "\nAvailable ${bundleName} versions (index, version, location):"
         println "-".multiply(60)
