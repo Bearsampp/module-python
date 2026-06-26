@@ -1,23 +1,11 @@
 name: Python Module Tests
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
   workflow_run:
     workflows:
       - Update Releases Properties
     types:
       - completed
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Python version to test (e.g., 3.13.5, 3.12.9)'
-        required: false
-        type: string
 
 permissions:
   contents: read
@@ -27,6 +15,7 @@ permissions:
 jobs:
   detect-versions:
     name: Detect Python Versions to Test
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       versions: ${{ steps.detect.outputs.versions }}
